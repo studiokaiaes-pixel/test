@@ -42,13 +42,6 @@ class KAIA_App {
     }
 
     public static function enqueue_assets($hook = '') {
-        if ($hook !== 'toplevel_page_kaia' && $hook !== 'kaia_theme' && get_query_var('kaia_standalone') != '1' && !is_admin()) {
-            // Enqueue on front-end if KAIA theme is active
-            if (!current_theme_supports('kaia') && get_template() !== 'kaia') {
-                return;
-            }
-        }
-
         // Clean default WP admin styles when inside KAIA admin page
         if ($hook === 'toplevel_page_kaia') {
             wp_add_inline_style('wp-admin', '
