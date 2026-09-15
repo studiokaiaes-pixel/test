@@ -46,7 +46,11 @@ final class KAIA {
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
 
-        add_action('plugins_loaded', array($this, 'init_plugin'));
+        if (did_action('plugins_loaded')) {
+            $this->init_plugin();
+        } else {
+            add_action('plugins_loaded', array($this, 'init_plugin'));
+        }
     }
 
     public function init_plugin() {
@@ -54,10 +58,15 @@ final class KAIA {
         KAIA_Roles::init();
 
         // Initialize REST API
-        add_action('rest_api_init', function() {
+        if (did_action('rest_api_init')) {
             $controller = new KAIA_REST_Controller();
             $controller->register_routes();
-        });
+        } else {
+            add_action('rest_api_init', function() {
+                $controller = new KAIA_REST_Controller();
+                $controller->register_routes();
+            });
+        }
 
         // Initialize App UI
         KAIA_App::init();

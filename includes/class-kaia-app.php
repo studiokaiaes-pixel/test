@@ -14,7 +14,7 @@ class KAIA_App {
         add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue_assets'));
         add_action('wp_enqueue_scripts', array(__CLASS__, 'enqueue_assets'));
 
-        // Direct app page template hook (allows full-screen mode outside default WP admin chrome if requested)
+        // Direct app page template hook
         add_action('init', array(__CLASS__, 'add_rewrite_rules'));
         add_filter('query_vars', array(__CLASS__, 'add_query_vars'));
         add_action('template_redirect', array(__CLASS__, 'render_standalone_app'));
@@ -41,12 +41,15 @@ class KAIA_App {
         return $vars;
     }
 
-    public static function enqueue_assets($hook) {
-        if ($hook !== 'toplevel_page_kaia' && get_query_var('kaia_standalone') != '1') {
-            return;
+    public static function enqueue_assets($hook = '') {
+        if ($hook !== 'toplevel_page_kaia' && $hook !== 'kaia_theme' && get_query_var('kaia_standalone') != '1' && !is_admin()) {
+            // Enqueue on front-end if KAIA theme is active
+            if (!current_theme_supports('kaia') && get_template() !== 'kaia') {
+                return;
+            }
         }
 
-        // Clean default WP admin styles when inside KAIA page
+        // Clean default WP admin styles when inside KAIA admin page
         if ($hook === 'toplevel_page_kaia') {
             wp_add_inline_style('wp-admin', '
                 #wpcontent { padding-left: 0 !important; }
