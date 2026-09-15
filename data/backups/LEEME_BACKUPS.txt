@@ -1,0 +1,8 @@
+KAIA - COPIAS DE SEGURIDAD LOCALES
+==================================
+Esta carpeta almacena las copias de seguridad de la base de datos empresarial de KAIA.
+Los archivos se generan con fecha y hora:
+- KAIA_backup_YYYYMMDD_HHMMSS.sqlite
+- KAIA_backup_YYYYMMDD_HHMMSS.json
+
+Puede restaurar cualquier copia desde el panel de Configuración de KAIA.
