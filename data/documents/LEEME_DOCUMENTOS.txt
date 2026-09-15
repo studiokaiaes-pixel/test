@@ -1,0 +1,4 @@
+KAIA - DOCUMENTOS Y ARCHIVOS DE EMPRESA
+========================================
+Esta carpeta almacena los documentos empresariales locales (contratos, anexos, memorias técnicas y adjuntos de clientes y proyectos).
+Todos los archivos se conservan localmente en el pendrive junto a KAIA.exe.

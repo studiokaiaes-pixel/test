@@ -1,0 +1,7 @@
+KAIA - ARCHIVOS EXPORTADOS
+==========================
+Esta carpeta almacena las exportaciones directas generadas por KAIA:
+- Facturas en PDF
+- Presupuestos en PDF
+- Informes de tesorería y balances en CSV/Excel
+- Extractos de base de datos
