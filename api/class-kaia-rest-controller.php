@@ -11,7 +11,6 @@ class KAIA_REST_Controller extends WP_REST_Controller {
 
     protected $namespace = 'kaia/v1';
 
-    // Whitelisted table columns to ensure strict DB safety
     private $allowed_columns = array(
         'clients' => array('id', 'wp_user_id', 'company_id', 'nombre', 'apellidos', 'empresa', 'cif', 'email', 'telefono', 'direccion', 'codigoPostal', 'ciudad', 'provincia', 'pais', 'notas', 'estado', 'fechaAlta', 'fechaModificacion', 'isDemo'),
         'services' => array('id', 'nombre', 'categoria', 'descripcion', 'precio', 'clienteId', 'empresaId', 'estado', 'fechaContratacion', 'fechaRenovacion', 'notas'),
@@ -29,14 +28,12 @@ class KAIA_REST_Controller extends WP_REST_Controller {
     );
 
     public function register_routes() {
-        // Initial Full App State
         register_rest_route($this->namespace, '/state', array(
             'methods'  => WP_REST_Server::READABLE,
             'callback' => array($this, 'get_state'),
             'permission_callback' => array($this, 'check_read_permission'),
         ));
 
-        // Generic collection and item endpoints for resources
         $resources = array(
             'companies', 'clients', 'services', 'domains', 'hosting',
             'projects', 'quotes', 'invoices', 'finances', 'documents',
@@ -76,7 +73,6 @@ class KAIA_REST_Controller extends WP_REST_Controller {
             ));
         }
 
-        // Invoice Payment Endpoint
         register_rest_route($this->namespace, '/invoices/(?P<id>[a-zA-Z0-9_\-]+)/payments', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array($this, 'add_invoice_payment'),
@@ -111,7 +107,38 @@ class KAIA_REST_Controller extends WP_REST_Controller {
             return new WP_Error('rest_forbidden', 'Los clientes no tienen permisos de escritura.', array('status' => 403));
         }
 
-        if (current_user_can('administrator') || current_user_can('kaia_view_dashboard')) {
+        $path = trim($request->get_route(), '/');
+        $parts = explode('/', $path);
+        $resource = $parts[2] ?? '';
+
+        $cap_map = array(
+            'clients'    => 'kaia_manage_clients',
+            'services'   => 'kaia_manage_services',
+            'domains'    => 'kaia_manage_domains',
+            'hosting'    => 'kaia_manage_hosting',
+            'projects'   => 'kaia_manage_projects',
+            'quotes'     => 'kaia_manage_quotes',
+            'invoices'   => 'kaia_manage_invoices',
+            'finances'   => 'kaia_manage_finances',
+            'documents'  => 'kaia_manage_documents',
+            'leads'      => 'kaia_manage_leads',
+            'suppliers'  => 'kaia_manage_suppliers',
+            'products'   => 'kaia_manage_products',
+            'companies'  => 'kaia_manage_companies',
+            'company'    => 'kaia_manage_companies',
+            'settings'   => 'kaia_manage_settings',
+            'users'      => 'kaia_manage_users',
+        );
+
+        if (current_user_can('administrator') || current_user_can('kaia_administrator')) {
+            return true;
+        }
+
+        if (isset($cap_map[$resource]) && current_user_can($cap_map[$resource])) {
+            return true;
+        }
+
+        if (current_user_can('kaia_view_dashboard') && in_array('kaia_employee', (array)$user->roles)) {
             return true;
         }
 
@@ -137,7 +164,7 @@ class KAIA_REST_Controller extends WP_REST_Controller {
         $prefix = KAIA_DB::get_table_prefix();
 
         $user = wp_get_current_user();
-        $is_client = in_array('kaia_client', (array)$user->roles) && !current_user_can('administrator');
+        $is_client = in_array('kaia_client', (array)$user->roles) && !current_user_can('administrator') && !current_user_can('kaia_administrator');
         $client_id = $is_client ? $this->get_current_client_id() : null;
 
         // Company
@@ -161,63 +188,46 @@ class KAIA_REST_Controller extends WP_REST_Controller {
             }
         }
 
-        // Clients
-        if ($is_client && $client_id) {
-            $clients = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}clients WHERE id = %s", $client_id), ARRAY_A);
+        if ($is_client) {
+            // STRICT ISOLATION: If $client_id is empty, return empty arrays for client restricted resources
+            if (empty($client_id)) {
+                $clients = array();
+                $services = array();
+                $domains = array();
+                $hosting = array();
+                $projects = array();
+                $quotes = array();
+                $invoices = array();
+                $documents = array();
+            } else {
+                $clients = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}clients WHERE id = %s", $client_id), ARRAY_A);
+                $services = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}services WHERE clienteId = %s", $client_id), ARRAY_A);
+                $domains = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}domains WHERE clienteId = %s", $client_id), ARRAY_A);
+                $hosting = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}hosting WHERE clienteId = %s", $client_id), ARRAY_A);
+                $projects = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}projects WHERE clienteId = %s", $client_id), ARRAY_A);
+                $quotes = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}quotes WHERE clienteId = %s", $client_id), ARRAY_A);
+                $invoices = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}invoices WHERE clienteId = %s", $client_id), ARRAY_A);
+                $documents = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}documents WHERE clienteId = %s", $client_id), ARRAY_A);
+            }
         } else {
             $clients = $wpdb->get_results("SELECT * FROM {$prefix}clients ORDER BY created_at DESC", ARRAY_A);
-        }
-        foreach ($clients as &$c) {
-            $c['isDemo'] = (bool)($c['isDemo'] ?? false);
-        }
-
-        // Services
-        if ($is_client && $client_id) {
-            $services = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}services WHERE clienteId = %s", $client_id), ARRAY_A);
-        } else {
             $services = $wpdb->get_results("SELECT * FROM {$prefix}services ORDER BY created_at DESC", ARRAY_A);
-        }
-        foreach ($services as &$s) {
-            $s['precio'] = (float)$s['precio'];
-        }
-
-        // Domains
-        if ($is_client && $client_id) {
-            $domains = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}domains WHERE clienteId = %s", $client_id), ARRAY_A);
-        } else {
             $domains = $wpdb->get_results("SELECT * FROM {$prefix}domains ORDER BY created_at DESC", ARRAY_A);
-        }
-        foreach ($domains as &$d) {
-            $d['coste'] = (float)$d['coste'];
-        }
-
-        // Hosting
-        if ($is_client && $client_id) {
-            $hosting = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}hosting WHERE clienteId = %s", $client_id), ARRAY_A);
-        } else {
             $hosting = $wpdb->get_results("SELECT * FROM {$prefix}hosting ORDER BY created_at DESC", ARRAY_A);
-        }
-        foreach ($hosting as &$h) {
-            $h['coste'] = (float)$h['coste'];
+            $projects = $wpdb->get_results("SELECT * FROM {$prefix}projects ORDER BY created_at DESC", ARRAY_A);
+            $quotes = $wpdb->get_results("SELECT * FROM {$prefix}quotes ORDER BY created_at DESC", ARRAY_A);
+            $invoices = $wpdb->get_results("SELECT * FROM {$prefix}invoices ORDER BY created_at DESC", ARRAY_A);
+            $documents = $wpdb->get_results("SELECT * FROM {$prefix}documents ORDER BY created_at DESC", ARRAY_A);
         }
 
-        // Projects
-        if ($is_client && $client_id) {
-            $projects = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}projects WHERE clienteId = %s", $client_id), ARRAY_A);
-        } else {
-            $projects = $wpdb->get_results("SELECT * FROM {$prefix}projects ORDER BY created_at DESC", ARRAY_A);
-        }
+        foreach ($clients as &$c) { $c['isDemo'] = (bool)($c['isDemo'] ?? false); }
+        foreach ($services as &$s) { $s['precio'] = (float)$s['precio']; }
+        foreach ($domains as &$d) { $d['coste'] = (float)$d['coste']; }
+        foreach ($hosting as &$h) { $h['coste'] = (float)$h['coste']; }
         foreach ($projects as &$p) {
             $p['importe'] = (float)$p['importe'];
             $p['tareas'] = $this->parse_json($p['tareas_json'] ?? '[]');
             $p['isDemo'] = (bool)($p['isDemo'] ?? false);
-        }
-
-        // Quotes
-        if ($is_client && $client_id) {
-            $quotes = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}quotes WHERE clienteId = %s", $client_id), ARRAY_A);
-        } else {
-            $quotes = $wpdb->get_results("SELECT * FROM {$prefix}quotes ORDER BY created_at DESC", ARRAY_A);
         }
         foreach ($quotes as &$q) {
             $q['subtotal'] = (float)$q['subtotal'];
@@ -228,13 +238,6 @@ class KAIA_REST_Controller extends WP_REST_Controller {
             $q['lineas'] = $this->parse_json($q['lineas_json'] ?? '[]');
             $q['plantillaConfig'] = $this->parse_json($q['plantillaConfig_json'] ?? '{}');
             $q['isDemo'] = (bool)($q['isDemo'] ?? false);
-        }
-
-        // Invoices
-        if ($is_client && $client_id) {
-            $invoices = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}invoices WHERE clienteId = %s", $client_id), ARRAY_A);
-        } else {
-            $invoices = $wpdb->get_results("SELECT * FROM {$prefix}invoices ORDER BY created_at DESC", ARRAY_A);
         }
         foreach ($invoices as &$inv) {
             $inv['baseImponible'] = (float)$inv['baseImponible'];
@@ -257,13 +260,6 @@ class KAIA_REST_Controller extends WP_REST_Controller {
                 $f['importe'] = (float)$f['importe'];
                 $f['isDemo'] = (bool)($f['isDemo'] ?? false);
             }
-        }
-
-        // Documents
-        if ($is_client && $client_id) {
-            $documents = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$prefix}documents WHERE clienteId = %s", $client_id), ARRAY_A);
-        } else {
-            $documents = $wpdb->get_results("SELECT * FROM {$prefix}documents ORDER BY created_at DESC", ARRAY_A);
         }
 
         // Leads
@@ -497,7 +493,6 @@ class KAIA_REST_Controller extends WP_REST_Controller {
                 $v = wp_json_encode($v);
             }
 
-            // Strictly filter against allowed table columns
             if (in_array($db_key, $valid_columns, true)) {
                 if (is_bool($v)) {
                     $data[$db_key] = $v ? 1 : 0;
@@ -609,7 +604,6 @@ class KAIA_REST_Controller extends WP_REST_Controller {
             'fechaModificacion' => date('Y-m-d')
         ), array('id' => $invoice_id));
 
-        // Create Finance income record automatically
         $wpdb->insert("{$prefix}finances", array(
             'id'            => 'MOV-' . time() . '-' . rand(10, 99),
             'fecha'         => sanitize_text_field($payment['fecha'] ?? date('Y-m-d')),

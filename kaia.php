@@ -15,8 +15,18 @@ if (!defined('ABSPATH')) {
 }
 
 define('KAIA_VERSION', '2.0.0');
-define('KAIA_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('KAIA_PLUGIN_URL', plugin_dir_url(__FILE__));
+
+// Calculate directory and URL dynamically whether loaded as Theme or Plugin
+$kaia_dir = plugin_dir_path(__FILE__);
+$kaia_url = plugin_dir_url(__FILE__);
+
+if (function_exists('get_template_directory') && strpos(__FILE__, get_template_directory()) !== false) {
+    $kaia_dir = get_template_directory() . '/';
+    $kaia_url = get_template_directory_uri() . '/';
+}
+
+define('KAIA_PLUGIN_DIR', $kaia_dir);
+define('KAIA_PLUGIN_URL', $kaia_url);
 define('KAIA_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
 // Require core class files
